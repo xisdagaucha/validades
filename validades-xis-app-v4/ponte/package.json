@@ -1,0 +1,9 @@
+{
+  "name": "ponte-xis",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Caixinha de impressão Xis da Gaúcha: escuta a fila do app e imprime na Zebra",
+  "main": "ponte.mjs",
+  "dependencies": { "firebase": "10.12.2" }
+}
