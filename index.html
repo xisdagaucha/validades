@@ -781,6 +781,13 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand);outline:none}
         <div class="empgrid" id="cEmp"></div></div>
       <div class="row"><button class="btn primary" type="submit">Salvar ajustes</button></div>
     </form>
+    <div class="card" id="zebraCard">
+      <h3>Impressora Zebra (caixinha de impressão)</h3>
+      <p class="muted" style="margin:0;font-size:14px">Com a caixinha ligada na Zebra, a etiqueta sai direto na impressora da loja, de qualquer celular, tablet ou computador, sem baixar PDF.</p>
+      <label class="chk"><input type="checkbox" id="cZebra"> <span><b>Imprimir direto na Zebra pela caixinha</b><small>Desligado: o app gera o PDF da etiqueta, como antes.</small></span></label>
+      <div id="pontesList" class="list"></div>
+      <div class="row" id="zebraTestes"></div>
+    </div>
     <div class="card" id="ordemCard">
       <h3>Ordem das abas</h3>
       <p class="muted" style="margin:0;font-size:14px">Use as setas para mudar a posição de cada aba no menu. Salva na hora e vale para todos os aparelhos.</p>
@@ -1006,7 +1013,7 @@ function go(t){
   if(t==="rastrear"){ subEmit(); setTimeout(()=>$("#rq").focus({preventScroll:true}),50); }
   if(t==="historico"){subHist(); subEmit(); renderHist(); if(!$("#mDe").value) setPeriodo("1"); else carregarMov();}
   if(t==="funcionarios") renderFunc();
-  if(t==="ajustes"){ fillCfg(); renderOrdem(); }
+  if(t==="ajustes"){ fillCfg(); renderOrdem(); renderZebra(); subPontes(); }
   if(t==="permissoes") renderPerm();
   if(t==="perdas"){ carregarPerdas(); }
 }
@@ -1057,7 +1064,7 @@ $("#lista").addEventListener("click",async ev=>{
   const a=b.dataset.a, e=ativas.find(x=>x.lote===b.dataset.l);
   if(a==="cancel"){openConfirm=null;renderPainel();return}
   if(!e) return;
-  if(a==="pdf"){baixarPdf([e]);return}
+  if(a==="pdf"){imprimirEtiquetas([e]);return}
   if(a==="desc"){openConfirm={lote:e.lote,kind:"desc"};renderPainel();return}
   if(a==="usar"){ if((e.qtd||1)>1){openConfirm={lote:e.lote,kind:"usar"};renderPainel();return} return baixa(e,"utilizada") }
   if(a==="usarTodos") return baixa(e,"utilizada");
@@ -1104,6 +1111,7 @@ function prepNova(){
   prodOpts(); unidadeOpts($("#nUn"));
   const lu=unSel||lsGet("xg-un-nova"); if(lu&&(cfg.unidades||[]).includes(lu)) $("#nUn").value=lu;
   respOpts();
+  $("#bSalvarPdf").textContent=cfg.zebraAtiva?"Salvar e imprimir na Zebra":"Salvar e baixar etiqueta (PDF)";
   if(!$("#nManip").value) $("#nManip").value=toLocalInput(new Date());
   const {w,h}=tam(); $("#tamTxt").textContent=`${w} × ${h} mm`;
   renderCons(); calcVal();
@@ -1259,7 +1267,7 @@ async function salvarNova(pdf){
     toast(`Etiqueta salva · lote ${lote}`);
     prevLote=null; $("#nObs").value=""; $("#nQtd").value=1; $("#nManip").value=toLocalInput(new Date()); valTocado=false; calcVal();
     grpSel=null; $("#nBusca").value=""; irPara("grupo");
-    if(pdf) await baixarPdf([e]);
+    if(pdf) await imprimirEtiquetas([e]);
   }catch(err){erro(err)} finally{btns.forEach(b=>b.disabled=false)}
 }
 $("#fNova").onsubmit=ev=>{ev.preventDefault();salvarNova(true)};
@@ -1319,6 +1327,69 @@ function quadrada(doc,e,png,v,w,h){
   const em=empresaDe(e.unidade); const foot=[...(em.razao?doc.splitTextToSize(em.razao,W-37*s):[]), em.cnpj?"CNPJ":"", em.cnpj||""].filter(Boolean);
   doc.text(foot,w-m,h-m-(foot.length-1)*2.2*s,{align:"right",lineHeightFactor:1.25});
 }
+/* ---------- ZEBRA (ZPL pela caixinha) ---------- */
+const zt=x=>String(x??"").replace(/[\^~\\]/g," ").replace(/[–—]/g,"-").replace(/[‘’]/g,"'").replace(/[“”]/g,'"');
+const logoGFcache={};
+async function logoGF(x,y,larg){
+  const k=larg; if(!logoGFcache[k]){ const img=new Image(); img.src=LOGO_MONO; await img.decode().catch(()=>{});
+    const w=larg, h=Math.max(8,Math.round(img.naturalHeight*w/img.naturalWidth)), bpr=Math.ceil(w/8);
+    const c=document.createElement("canvas"); c.width=w; c.height=h; const g=c.getContext("2d"); g.drawImage(img,0,0,w,h);
+    const d=g.getImageData(0,0,w,h).data; let hex="";
+    for(let r=0;r<h;r++){ for(let b=0;b<bpr;b++){ let byte=0; for(let i=0;i<8;i++){ const px=b*8+i; if(px<w){ const o=(r*w+px)*4; if(d[o+3]>110&&(d[o]+d[o+1]+d[o+2])/3<140) byte|=(128>>i); } } hex+=byte.toString(16).padStart(2,"0").toUpperCase(); } }
+    logoGFcache[k]={bpr,h,hex}; }
+  const L=logoGFcache[k]; return `^FO${x},${y}^GFA,${L.bpr*L.h},${L.bpr*L.h},${L.bpr},${L.hex}^FS`;
+}
+async function gerarZPL(e,copias){
+  const {w,h}=tam(); const W=Math.round(w*8), H=Math.round(h*8); const sx=W/480, sy=H/480, s=Math.min(sx,sy);
+  const X=v=>Math.round(v*sx), Y=v=>Math.round(v*sy), F=v=>Math.max(10,Math.round(v*s)), P=v=>Math.max(1,Math.round(v*s));
+  const v=new Date(e.validade), em=empresaDe(e.unidade), c=CONS[e.conservacao]||{n:e.conservacao||"",t:""};
+  let z=`^XA^CI28^PW${W}^LL${H}^LH0,0^MD8`;
+  z+=await logoGF(X(16),Y(10),Math.round(120*s));
+  z+=`^FO${X(250)},${Y(16)}^A0N,${F(58)},${F(54)}^FB${X(214)},1,0,R^FD${zt(WD[v.getDay()])}^FS`;
+  z+=`^FO${X(16)},${Y(84)}^GB${X(448)},${P(3)},${P(3)}^FS`;
+  z+=`^FO${X(16)},${Y(96)}^A0N,${F(40)},${F(36)}^FB${X(448)},2,${P(4)},L^FD${zt((e.produto||"").toUpperCase())}^FS`;
+  z+=`^FO${X(16)},${Y(186)}^A0N,${F(24)},${F(22)}^FDMANIPULADO: ${fmt(e.manipulado)}^FS`;
+  z+=`^FO${X(16)},${Y(216)}^A0N,${F(22)},${F(20)}^FDVALIDADE:^FS`;
+  z+=`^FO${X(16)},${Y(240)}^A0N,${F(48)},${F(42)}^FD${fmt(e.validade)}^FS`;
+  z+=`^FO${X(16)},${Y(296)}^A0N,${F(22)},${F(20)}^FB${X(448)},1,0,L^FD${zt((c.n||"").toUpperCase()+(c.t?" - "+c.t:""))}^FS`;
+  z+=`^FO${X(16)},${Y(322)}^A0N,${F(22)},${F(20)}^FB${X(448)},1,0,L^FDRESP.: ${zt(e.responsavel)}${e.responsavelFuncao?" ("+zt(e.responsavelFuncao)+")":""}^FS`;
+  z+=`^FO${X(16)},${Y(348)}^A0N,${F(22)},${F(20)}^FB${X(448)},1,0,L^FD${zt(e.unidade||"")}${e.obs?" - QTD: "+zt(e.obs):""}^FS`;
+  z+=`^FO${X(16)},${Y(378)}^BY${Math.max(1,Math.round(2*s))},2,${F(50)}^BCN,${F(50)},N,N,N^FD${zt(e.lote)}^FS`;
+  z+=`^FO${X(16)},${Y(436)}^A0N,${F(22)},${F(20)}^FD${zt(e.lote)}^FS`;
+  if(em.cnpj) z+=`^FO${X(200)},${Y(434)}^A0N,${F(18)},${F(16)}^FB${X(264)},1,0,R^FDCNPJ ${zt(em.cnpj)}^FS`;
+  if(em.razao) z+=`^FO${X(200)},${Y(454)}^A0N,${F(18)},${F(16)}^FB${X(264)},1,0,R^FD${zt(em.razao)}^FS`;
+  return z+`^PQ${Math.max(1,copias||1)}^XZ`;
+}
+async function enviarZebra(lista){
+  if(!db){toast("Sem conexão com os dados");return}
+  for(const e of lista){
+    const copias=Math.max(1,e.qtd||1);
+    try{ const ref=await db.collection("impressoes").add({unidade:e.unidade||"",zpl:await gerarZPL(e,copias),copias,lote:e.lote||"",produto:e.produto||"",status:"pendente",criadoEm:new Date().toISOString(),por:quem()});
+      acompanharImpressao(ref,e.produto||"Etiqueta",e.unidade||""); }catch(err){erro(err)}
+  }
+}
+function acompanharImpressao(ref,nome,un){
+  toast(`Enviando para a Zebra: ${nome}…`); let fim=false;
+  const off=ref.onSnapshot(s=>{ const d=s.exists?s.data():null; if(!d||fim) return;
+    if(d.status==="impresso"){fim=true;off();toast(`Impresso na Zebra: ${nome}`)}
+    else if(d.status==="erro"){fim=true;off();toast(`Erro na Zebra (${unCurta(un)}): ${d.erro||"verifique a impressora"}`)} },()=>{});
+  setTimeout(()=>{ if(!fim){ fim=true; off(); toast(`A caixinha de ${unCurta(un)} não respondeu. A etiqueta sai quando ela voltar. Confira se está ligada.`) } },25000);
+}
+async function imprimirEtiquetas(lista){ if(cfg.zebraAtiva) return enviarZebra(lista); return baixarPdf(lista); }
+let pontes={}, pontesSub=null;
+function subPontes(){ if(pontesSub||!db) return; pontesSub=db.collection("pontes").onSnapshot(s=>{pontes={};s.docs.forEach(d=>pontes[d.id]=d.data()); if(tab==="ajustes") renderZebra()},()=>{pontesSub=null}); }
+function renderZebra(){
+  $("#cZebra").checked=!!cfg.zebraAtiva;
+  const ps=Object.entries(pontes);
+  $("#pontesList").innerHTML=ps.length?ps.map(([id,p])=>{const on=p.visto&&Date.now()-new Date(p.visto)<3*60000;
+    return `<div class="prow"><span class="pname">Caixinha ${esc(id)}<small class="muted" style="display:block;font-weight:400">${esc((p.unidades||[]).map(unCurta).join(", "))} · impressora: ${esc(p.impressora||"?")}${p.ultimoErro?` · último erro: ${esc(p.ultimoErro)}`:""}</small></span><span class="pill ${on?"good":"bad"}">${on?"Online":"Desligada"}</span><span class="muted" style="font-size:12px">visto ${p.visto?fmt(p.visto):"—"}</span></div>`}).join("")
+    :`<p class="muted" style="margin:0;font-size:14px">Nenhuma caixinha conectada ainda. Depois de instalar, ela aparece aqui.</p>`;
+  $("#zebraTestes").innerHTML=(cfg.unidades||[]).map(u=>`<button type="button" class="btn sm" data-zteste="${esc(u)}">Imprimir teste · ${esc(unCurta(u))}</button>`).join("");
+}
+$("#cZebra").onchange=async()=>{ if(!guard()) {renderZebra();return} await salvarCfgParcial({zebraAtiva:$("#cZebra").checked}); toast($("#cZebra").checked?"Impressão direta na Zebra ativada":"Voltou a gerar PDF"); };
+$("#zebraTestes").addEventListener("click",e=>{const b=e.target.closest("[data-zteste]"); if(!b) return; const u=b.dataset.zteste, agora=new Date();
+  enviarZebra([{produto:"Teste de impressão",conservacao:"resfriado",manipulado:agora.toISOString(),validade:new Date(agora.getTime()+3*864e5).toISOString(),responsavel:quem(),unidade:u,obs:"",lote:"XGTESTE-"+agora.getHours()+agora.getMinutes(),qtd:1}]);});
+
 async function baixarPdf(lista){
   if(!window.jspdf||!window.JsBarcode){toast("Gerador de PDF não carregou. Recarregue a página.");return}
   const dl=await claude.use("downloads");
@@ -1519,7 +1590,7 @@ function renderTrack(){
     if(t==="usar1") return baixaUma(e);
     if(t==="descOk"){const q=qtdDe(b); trackConf=null; return baixa(e,"descartada",b.dataset.m,q)}
     if(t==="desfazer") return desfazerBaixa(e);
-    if(t==="pdf"){ await baixarPdf([{...e,qtd:1}]); if(guard()) try{await db.doc("etiquetas/"+e.lote).update({eventos:[...eventosDe(e),evento("reimpressa","")]})}catch(err){} }
+    if(t==="pdf"){ await imprimirEtiquetas([{...e,qtd:1}]); if(guard()) try{await db.doc("etiquetas/"+e.lote).update({eventos:[...eventosDe(e),evento("reimpressa","")]})}catch(err){} }
   });
   $("#rq").focus({preventScroll:true});
 }
