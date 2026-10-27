@@ -151,6 +151,15 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand);outline:none}
   .item .side .top-r{display:flex;justify-content:space-between;align-items:center;gap:8px}
   .acts{justify-content:flex-start}
 }
+/* Seleção em massa no painel */
+.selbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--surface);border-radius:12px;box-shadow:var(--shadow);padding:10px 12px}
+.selbar .cnt{font-weight:800;white-space:nowrap}
+.selbar .confirm{flex-basis:100%;border-radius:10px;border:1px dashed var(--line)}
+.selbar .confirm p{margin:0;flex-basis:100%}
+.selbox{width:20px;height:20px;vertical-align:-4px;margin:0 8px 0 0;accent-color:var(--bad);cursor:pointer}
+body.selmode .item{cursor:pointer}
+body.selmode .item .acts{display:none}
+.item.sel{outline:3px solid var(--bad);outline-offset:-3px}
 .empty{padding:28px;text-align:center;color:var(--muted);background:var(--surface);border-radius:12px;border:1.5px dashed var(--line)}
 
 /* New label */
@@ -260,7 +269,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand);outline:none}
 .tl{list-style:none;margin:0;padding:0 0 0 18px;border-left:3px solid var(--line);display:flex;flex-direction:column;gap:12px}
 .tl li{position:relative;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
 .tl li::before{content:"";position:absolute;left:-26px;top:4px;width:13px;height:13px;border-radius:50%;background:var(--brand);border:3px solid var(--surface)}
-.tl li.descartada::before{background:var(--bad)} .tl li.utilizada::before,.tl li.parcial::before{background:var(--muted)} .tl li.reaberta::before{background:var(--warn)}
+.tl li.descartada::before{background:var(--bad)} .tl li.utilizada::before,.tl li.parcial::before{background:var(--muted)} .tl li.reaberta::before{background:var(--warn)} .tl li.excluida::before{background:var(--muted)}
 
 /* Mode */
 .hright{display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:flex-end}
@@ -473,6 +482,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand);outline:none}
       <input type="search" class="search" id="q" placeholder="Buscar produto ou bipar o código da etiqueta" autocomplete="off">
       <select id="fUn" style="width:auto;flex:0 1 220px" aria-label="Filtrar por unidade"></select>
     </div>
+    <div class="selbar" id="selBar"></div>
     <div class="list" id="lista"></div>
   </section>
 
@@ -827,6 +837,7 @@ const DEF_CFG={unidades:["Estoque Principal","Barreiros – São José","Centro 
 let db=null, canWrite=true, funcionarios=[], editFunc=null;
 const FUNCOES=["Gestor(a)","Nutricionista","Líder de turno","Cozinheiro(a)","Auxiliar de cozinha","Chapeiro(a)","Atendente","Caixa","Estoquista","Entregador(a)","Serviços gerais"];
 let produtos=[], ativas=[], hist=[], cfg={...DEF_CFG}; buildCons();
+let selMode=false, selSet=new Set(), selConf=null;
 let filtroStatus=null, hlLote=null, openConfirm=null, histSub=null, editProd=null, valTocado=false;
 let tab="painel", sess=null, isAdmin=true, lockMode="entrar";
 const PERMS=[["painel","Painel de validades"],["rastrear","Bipar, rastrear e dar baixa"],["movimentacao","Movimentação"],["perdas","Perdas"],["produtos","Produtos"],["funcionarios","Funcionários"],["permissoes","Permissões"],["ajustes","Ajustes"]];
@@ -1035,16 +1046,18 @@ function renderPainel(){
   let rows=base.filter(e=>!filtroStatus||statusOf(e,now)===filtroStatus);
   if(q) rows=rows.filter(e=>(e.produto||"").toLowerCase().includes(q)||(e.lote||"").toLowerCase().includes(q)||(e.responsavel||"").toLowerCase().includes(q));
   rows.sort((a,b)=>new Date(a.validade)-new Date(b.validade));
+  renderSelBar(rows,base,now);
   const L=$("#lista");
   if(!db && !ativas.length){L.innerHTML=`<div class="empty">Conectando aos dados…</div>`;return}
   if(!rows.length){L.innerHTML=`<div class="empty">${ativas.length?"Nenhuma etiqueta com esse filtro.":"Nenhuma etiqueta ativa. Crie a primeira em “Nova etiqueta”."}</div>`;return}
   L.innerHTML=rows.map(e=>{
     const s=statusOf(e,now), v=new Date(e.validade);
     const conf=openConfirm&&openConfirm.lote===e.lote?openConfirm.kind:null;
-    return `<article class="item ${s}${hlLote===e.lote?" hl":""}" id="it-${esc(e.lote)}">
+    const marcado=selMode&&selSet.has(e.lote);
+    return `<article class="item ${s}${hlLote===e.lote?" hl":""}${marcado?" sel":""}" id="it-${esc(e.lote)}" data-lote="${esc(e.lote)}">
       <div class="stripe"></div>
       <div class="body">
-        <div class="name">${esc(e.produto)}${e.exemplo?'<span class="ex">exemplo</span>':""}</div>
+        <div class="name">${selMode?`<input type="checkbox" class="selbox" data-sel="${esc(e.lote)}" ${marcado?"checked":""} aria-label="Selecionar ${esc(e.produto)}">`:""}${esc(e.produto)}${e.exemplo?'<span class="ex">exemplo</span>':""}</div>
         <div class="meta"><span>${esc(CONS[e.conservacao]?.n||e.conservacao)}</span><span>Manip. <b class="mono">${fmt(e.manipulado,false)}</b></span><span>${esc(e.unidade)}</span><span>Resp. <b>${esc(e.responsavel)}</b></span>${e.obs?`<span>${esc(e.obs)}</span>`:""}${e.qtd>1?`<span><b>${e.qtd}</b> etiquetas</span>`:""}<span class="mono">${esc(e.lote)}</span></div>
       </div>
       <div class="side">
@@ -1060,6 +1073,8 @@ function renderPainel(){
     </article>`}).join("");
 }
 $("#lista").addEventListener("click",async ev=>{
+  if(selMode){ const art=ev.target.closest("article.item"); if(!art) return; const l=art.dataset.lote;
+    if(selSet.has(l)) selSet.delete(l); else selSet.add(l); selConf=null; renderPainel(); return; }
   const b=ev.target.closest("button[data-a]"); if(!b) return;
   const a=b.dataset.a, e=ativas.find(x=>x.lote===b.dataset.l);
   if(a==="cancel"){openConfirm=null;renderPainel();return}
@@ -1089,6 +1104,62 @@ async function baixa(e,status,motivo,qtdPerda){
 async function baixaUma(e){
   if(!guard()) return; openConfirm=null;
   try{ await db.doc("etiquetas/"+e.lote).update({qtd:(e.qtd||1)-1,eventos:[...eventosDe(e),evento("parcial",`1 usada, restam ${(e.qtd||1)-1}`)]}); toast(`${e.produto}: 1 etiqueta baixada, restam ${(e.qtd||1)-1}`);}catch(err){erro(err)}
+}
+/* ---------- seleção em massa ---------- */
+function podeExcluir(){ return sess==="__admin"||has("ajustes") }
+function renderSelBar(rows,base,now){
+  const B=$("#selBar"); if(!B) return;
+  for(const l of [...selSet]) if(!ativas.some(e=>e.lote===l)) selSet.delete(l);
+  document.body.classList.toggle("selmode",selMode);
+  if(!selMode){ B.innerHTML=`<button type="button" class="btn sm" data-s="on">☑ Selecionar várias</button><span class="muted" style="font-size:13px">Para dar baixa, descartar ou excluir muitas etiquetas de uma vez.</span>`; return }
+  const venc=base.filter(e=>statusOf(e,now)==="bad").length, n=selSet.size, dis=n?"":"disabled";
+  const pl=n===1?"etiqueta":"etiquetas";
+  const msg={usar:`Dar baixa como <b>usado</b> em <b>${n}</b> ${pl}?`,
+    desc:`Descartar <b>${n}</b> ${pl} com o motivo <b>Venceu</b>? Elas vão para o relatório de <b>Perdas</b>.`,
+    exc:`Excluir <b>${n}</b> ${pl}? Elas saem do painel e <b>não</b> entram em Perdas nem na Movimentação. Use para etiquetas de teste ou que já foram usadas e ninguém deu baixa.`}[selConf];
+  B.innerHTML=`<button type="button" class="btn sm danger" data-s="venc">Selecionar todas vencidas (${venc})</button>
+    <button type="button" class="btn sm" data-s="todas">Selecionar todas da lista (${rows.length})</button>
+    <button type="button" class="btn sm ghost" data-s="nada" ${dis}>Limpar</button>
+    <span class="sp"></span><span class="cnt">${n} selecionada${n===1?"":"s"}</span>
+    <button type="button" class="btn sm" data-s="usar" ${dis}>Usado</button>
+    <button type="button" class="btn sm danger" data-s="desc" ${dis}>Descartar</button>
+    ${podeExcluir()?`<button type="button" class="btn sm danger" data-s="exc" ${dis}>Excluir</button>`:""}
+    <button type="button" class="btn sm ghost" data-s="off">Fechar</button>
+    ${msg&&n?`<div class="confirm"><p>${msg}</p><button type="button" class="btn sm ${selConf==="usar"?"primary":"danger"}" data-s="ok">Confirmar</button><button type="button" class="btn sm ghost" data-s="cancel">Cancelar</button></div>`:""}`;
+}
+$("#selBar").addEventListener("click",async ev=>{
+  const b=ev.target.closest("button[data-s]"); if(!b||b.disabled) return; const a=b.dataset.s, now=new Date();
+  const un=$("#fUn").value;
+  if(a==="on"){ selMode=true; selSet.clear(); selConf=null; openConfirm=null; }
+  else if(a==="off"){ selMode=false; selSet.clear(); selConf=null; }
+  else if(a==="venc"){ ativas.filter(e=>(!un||e.unidade===un)&&statusOf(e,now)==="bad").forEach(e=>selSet.add(e.lote)); filtroStatus="bad"; $("#q").value=""; selConf=null; }
+  else if(a==="todas"){ document.querySelectorAll("#lista article.item").forEach(x=>selSet.add(x.dataset.lote)); selConf=null; }
+  else if(a==="nada"){ selSet.clear(); selConf=null; }
+  else if(a==="usar"||a==="desc"||a==="exc"){ selConf=a; }
+  else if(a==="cancel"){ selConf=null; }
+  else if(a==="ok"){ return acaoMassa(selConf); }
+  renderPainel();
+});
+async function acaoMassa(kind){
+  if(!guard()) return;
+  if(kind==="exc"&&!podeExcluir()){ toast("Só a gestora pode excluir"); return }
+  const lista=ativas.filter(e=>selSet.has(e.lote)); if(!lista.length) return;
+  const st={usar:"utilizada",desc:"descartada",exc:"excluida"}[kind];
+  const mot={usar:null,desc:"Venceu",exc:"Excluída em massa"}[kind];
+  const det={usar:"baixa em massa",desc:"Venceu · descarte em massa",exc:"exclusão em massa"}[kind];
+  const agora=new Date().toISOString(), por=quem();
+  const B=$("#selBar"); B.querySelectorAll("button").forEach(x=>x.disabled=true);
+  toast(`Processando ${lista.length} etiquetas…`);
+  try{
+    const dados=e=>({status:st,baixaEm:agora,motivo:mot,eventos:[...eventosDe(e),{tipo:st,em:agora,por,detalhe:det}]});
+    if(typeof db.batch==="function"){
+      for(let i=0;i<lista.length;i+=400){ const bt=db.batch(); lista.slice(i,i+400).forEach(e=>bt.update(db.doc("etiquetas/"+e.lote),dados(e))); await bt.commit(); }
+    } else { for(const e of lista) await db.doc("etiquetas/"+e.lote).update(dados(e)); }
+    if(kind==="desc") for(let i=0;i<lista.length;i+=20) await Promise.all(lista.slice(i,i+20).map(e=>registrarPerdaEtq(e,"Venceu",null,por)));
+    const nn=lista.length, um=nn===1; toast(kind==="usar"?`${nn} ${um?"etiqueta com":"etiquetas com"} baixa (usado)`:kind==="desc"?`${nn} ${um?"etiqueta descartada":"etiquetas descartadas"}`:`${nn} ${um?"etiqueta excluída":"etiquetas excluídas"}`);
+    selSet.clear(); selConf=null; selMode=false; if(filtroStatus==="bad") filtroStatus=null;
+  }catch(err){ erro(err) }
+  renderPainel();
 }
 $("#q").addEventListener("input",()=>{hlLote=null;renderPainel()});
 $("#q").addEventListener("keydown",ev=>{
@@ -1482,9 +1553,9 @@ async function bxBuscar(raw){
 $("#fBx").onsubmit=ev=>{ev.preventDefault(); bxBuscar($("#bxq").value)};
 function renderBx(){
   const e=bxEtq; if(!e) return; const now=new Date(), v=new Date(e.validade);
-  if(e.status!=="ativa"){ const ult=[...eventosDe(e)].reverse().find(x=>x.tipo==="utilizada"||x.tipo==="descartada");
+  if(e.status!=="ativa"){ const ult=[...eventosDe(e)].reverse().find(x=>x.tipo==="utilizada"||x.tipo==="descartada"||x.tipo==="excluida");
     $("#bxRes").innerHTML=`<div class="bxcard off"><span class="lbl">${esc(e.lote)}</span><h2>${esc(e.produto)}</h2>
-      <p class="bxbig">Esta etiqueta já teve baixa${ult?` em ${fmt(ult.em)}${ult.por&&ult.por!=="—"?` por ${esc(ult.por)}`:""}`:""}${e.status==="descartada"?" (descartada)":""}.</p>
+      <p class="bxbig">Esta etiqueta já teve baixa${ult?` em ${fmt(ult.em)}${ult.por&&ult.por!=="—"?` por ${esc(ult.por)}`:""}`:""}${e.status==="descartada"?" (descartada)":e.status==="excluida"?" (excluída)":""}.</p>
       <button class="btn" data-b="nova">Bipar outra etiqueta</button></div>`; bindBx(); return }
   const st=statusOf(e,now), q=e.qtd||1;
   $("#bxRes").innerHTML=`<div class="bxcard ${st}">
@@ -1541,7 +1612,7 @@ $("#pManip").onchange=()=>{$("#pMatF").hidden=!$("#pManip").checked};
 
 /* ---------- RASTREAR ---------- */
 let trackUnsub=null, track=null, trackConf=null;
-const EVN={emitida:"Etiqueta emitida",utilizada:"Baixa: usado",descartada:"Descartado",parcial:"Baixa parcial",reaberta:"Baixa desfeita",reimpressa:"Etiqueta reimpressa"};
+const EVN={emitida:"Etiqueta emitida",utilizada:"Baixa: usado",descartada:"Descartado",parcial:"Baixa parcial",reaberta:"Baixa desfeita",reimpressa:"Etiqueta reimpressa",excluida:"Excluída"};
 $("#fScan").onsubmit=ev=>{ev.preventDefault(); rastrear($("#rq").value)};
 async function rastrear(raw){
   const q=(raw||"").trim(); if(!q) return; if(!db){toast("Sem conexão com os dados");return}
@@ -1993,7 +2064,7 @@ function renderHist(){
 }
 $("#bLimpar").onclick=async()=>{
   if(!guard()) return; const cut=new Date(Date.now()-60*864e5).toISOString();
-  try{ const s0=await db.collection("etiquetas").where("baixaEm","<",cut).limit(500).get(); const s={docs:s0.docs.filter(d=>["utilizada","descartada"].includes(d.data().status))}; s.size=s.docs.length;
+  try{ const s0=await db.collection("etiquetas").where("baixaEm","<",cut).limit(500).get(); const s={docs:s0.docs.filter(d=>["utilizada","descartada","excluida"].includes(d.data().status))}; s.size=s.docs.length;
     for(const d of s.docs){await db.doc("etiquetas/"+d.id).delete()}
     $("#limpMsg").textContent=s.size?`${s.size} registros antigos apagados.`:"Nada com mais de 60 dias."; }catch(err){erro(err)}
 };
