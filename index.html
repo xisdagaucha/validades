@@ -407,8 +407,8 @@ body.selmode .item .acts{display:none}
 .prow .pname{font-weight:700;flex:1 1 200px}
 .impgrid{display:flex;flex-direction:column;gap:10px}
 .improw{background:var(--surface);border-radius:10px;padding:12px 14px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:10px}
-.improw .top{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.improw .top strong{flex:1 1 160px}
+.improw .imptop{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.improw .imptop strong{flex:1 1 160px}
 .improw select,.improw input[type=number]{font:inherit;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);color:inherit}
 .improw .tsplopts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 12px}
 .improw .tsplopts label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:700;color:var(--muted)}
@@ -1543,7 +1543,7 @@ function renderZebra(){
 function renderImpUnid(){
   const B=$("#impUnid"); if(!B) return; const foco=document.activeElement&&B.contains(document.activeElement); if(foco) return;
   B.innerHTML=(cfg.unidades||[]).map(u=>{ const im=impDe(u), t=im.tipo==="tspl", old=t&&caixinhaDesatualizada(u);
-    return `<div class="improw" data-un="${esc(u)}"><div class="top"><strong>${esc(unCurta(u))}</strong>
+    return `<div class="improw" data-un="${esc(u)}"><div class="imptop"><strong>${esc(unCurta(u))}</strong>
       <select data-k="tipo" aria-label="Tipo de impressora de ${esc(unCurta(u))}"><option value="zpl"${im.tipo==="zpl"?" selected":""}>Zebra (ZPL)</option><option value="tspl"${t?" selected":""}>Tomate / Elgin / genérica (TSPL)</option><option value="pdf"${im.tipo==="pdf"?" selected":""}>Sem caixinha: gerar PDF</option></select></div>
       ${im.tipo==="pdf"?`<div class="muted" style="font-size:13px">Nessa loja o app gera o PDF da etiqueta para imprimir pelo computador (Ctrl+P), até a caixinha ser instalada.</div>`:""}
       ${old?`<div class="warn">A caixinha dessa loja está numa versão antiga e não imprime em TSPL. Atualize a caixinha (comando de atualização).</div>`:""}
