@@ -405,6 +405,15 @@ body.selmode .item .acts{display:none}
 .cat{display:flex;flex-direction:column;gap:6px}
 .prow{background:var(--surface);border-radius:10px;padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:var(--shadow)}
 .prow .pname{font-weight:700;flex:1 1 200px}
+.impgrid{display:flex;flex-direction:column;gap:10px}
+.improw{background:var(--surface);border-radius:10px;padding:12px 14px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:10px}
+.improw .top{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.improw .top strong{flex:1 1 160px}
+.improw select,.improw input[type=number]{font:inherit;padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);color:inherit}
+.improw .tsplopts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 12px}
+.improw .tsplopts label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:700;color:var(--muted)}
+.improw .tsplopts label.inl{flex-direction:row;align-items:center;gap:8px;color:inherit;font-weight:600}
+.improw .warn{color:var(--bad);font-size:13px;font-weight:700}
 .vals{display:flex;gap:6px;flex-wrap:wrap}
 .vtag{font-size:12px;padding:3px 8px;border-radius:6px;background:var(--surface2);border:1px solid var(--line);font-family:var(--mono)}
 .vtag i{font-style:normal;font-family:var(--body);font-weight:700;color:var(--muted);margin-right:4px}
@@ -792,10 +801,13 @@ body.selmode .item .acts{display:none}
       <div class="row"><button class="btn primary" type="submit">Salvar ajustes</button></div>
     </form>
     <div class="card" id="zebraCard">
-      <h3>Impressora Zebra (caixinha de impressão)</h3>
-      <p class="muted" style="margin:0;font-size:14px">Com a caixinha ligada na Zebra, a etiqueta sai direto na impressora da loja, de qualquer celular, tablet ou computador, sem baixar PDF.</p>
-      <label class="chk"><input type="checkbox" id="cZebra"> <span><b>Imprimir direto na Zebra pela caixinha</b><small>Desligado: o app gera o PDF da etiqueta, como antes.</small></span></label>
+      <h3>Impressora de etiquetas (caixinha de impressão)</h3>
+      <p class="muted" style="margin:0;font-size:14px">Com a caixinha ligada na impressora, a etiqueta sai direto na impressora da loja, de qualquer celular, tablet ou computador, sem baixar PDF.</p>
+      <label class="chk"><input type="checkbox" id="cZebra"> <span><b>Imprimir direto na impressora pela caixinha</b><small>Desligado: o app gera o PDF da etiqueta, como antes.</small></span></label>
       <div id="pontesList" class="list"></div>
+      <h4 style="margin:6px 0 0">Impressora de cada loja</h4>
+      <p class="muted" style="margin:0;font-size:13px">Zebra usa a linguagem ZPL. Tomate, Elgin e outras genéricas costumam usar TSPL (o teste da impressora mostra em "Command mode").</p>
+      <div id="impUnid" class="impgrid"></div>
       <div class="row" id="zebraTestes"></div>
     </div>
     <div class="card" id="ordemCard">
@@ -1431,19 +1443,80 @@ async function gerarZPL(e,copias){
   if(em.razao) z+=`^FO${X(200)},${Y(454)}^A0N,${F(18)},${F(16)}^FB${X(264)},1,0,R^FD${zt(em.razao)}^FS`;
   return z+`^PQ${Math.max(1,copias||1)}^XZ`;
 }
+/* ---------- TSPL (Tomate, Elgin e genéricas): etiqueta desenhada como imagem ---------- */
+const IMP_PADRAO={tipo:"zpl",gap:2,ajX:0,ajY:0,dens:8,girar:false,inverter:false};
+function impDe(u){ return {...IMP_PADRAO,...((cfg.impressoras||{})[u]||{})} }
+let logoImgCache=null;
+async function logoImg(){ if(!logoImgCache){ const img=new Image(); img.src=LOGO_MONO; await img.decode().catch(()=>{}); logoImgCache=img } return logoImgCache }
+async function desenharEtiqueta(e){
+  const {w,h}=tam(); const W=Math.round(w*8), H=Math.round(h*8); const sx=W/480, sy=H/480, s=Math.min(sx,sy);
+  const X=v=>Math.round(v*sx), Y=v=>Math.round(v*sy), F=v=>Math.max(10,Math.round(v*s)), P=v=>Math.max(1,Math.round(v*s));
+  const v=new Date(e.validade), em=empresaDe(e.unidade), c=CONS[e.conservacao]||{n:e.conservacao||"",t:""};
+  const cv=document.createElement("canvas"); cv.width=W; cv.height=H; const g=cv.getContext("2d");
+  g.fillStyle="#fff"; g.fillRect(0,0,W,H); g.fillStyle="#000"; g.textBaseline="top";
+  const FAM='"Arial Narrow","Roboto Condensed","Liberation Sans Narrow",Arial,Helvetica,sans-serif';
+  const txt=(t,x,y,hh,{maxW=W-x-X(16),align="left",bold=true}={})=>{ t=String(t??""); g.font=`${bold?"bold ":""}${Math.round(hh*0.9)}px ${FAM}`;
+    let tw=g.measureText(t).width*0.86; const k=tw>maxW?maxW/tw:1; tw=Math.min(tw,maxW);
+    const xx=align==="right"?x+maxW-tw:x; g.save(); g.translate(xx,y); g.scale(0.86*k,1); g.fillText(t,0,0); g.restore(); };
+  const wrap=(t,maxW,hh,lines)=>{ g.font=`bold ${Math.round(hh*0.9)}px ${FAM}`; const ws=String(t).split(/\s+/); const out=[]; let cur="";
+    for(const wd of ws){ const tst=cur?cur+" "+wd:wd; if(g.measureText(tst).width*0.86<=maxW||!cur) cur=tst; else { out.push(cur); cur=wd } } if(cur) out.push(cur);
+    if(out.length>lines){ out.length=lines } return out };
+  const img=await logoImg(); const lw=Math.round(120*s); const lh=Math.round(img.naturalHeight*lw/(img.naturalWidth||1))||Math.round(70*s);
+  g.drawImage(img,X(16),Y(10),lw,lh);
+  txt(WD[v.getDay()],X(250),Y(16),F(58),{maxW:X(214),align:"right"});
+  g.fillRect(X(16),Y(84),X(448),P(3));
+  wrap((e.produto||"").toUpperCase(),X(448),F(40),2).forEach((l,i)=>txt(l,X(16),Y(96)+i*(F(40)+P(4)),F(40),{maxW:X(448)}));
+  txt("MANIPULADO: "+fmt(e.manipulado),X(16),Y(186),F(24));
+  txt("VALIDADE:",X(16),Y(216),F(22));
+  txt(fmt(e.validade),X(16),Y(240),F(48));
+  txt((c.n||"").toUpperCase()+(c.t?" - "+c.t:""),X(16),Y(296),F(22),{maxW:X(448)});
+  txt("RESP.: "+(e.responsavel||"")+(e.responsavelFuncao?" ("+e.responsavelFuncao+")":""),X(16),Y(322),F(22),{maxW:X(448)});
+  txt((e.unidade||"")+(e.obs?" - QTD: "+e.obs:""),X(16),Y(348),F(22),{maxW:X(448)});
+  if(window.JsBarcode&&e.lote){ try{ const bc=document.createElement("canvas"); JsBarcode(bc,e.lote,{format:"CODE128",displayValue:false,margin:0,height:F(50),width:Math.max(1,Math.round(2*s)),background:"#fff",lineColor:"#000"});
+    g.imageSmoothingEnabled=false; g.drawImage(bc,X(16),Y(378)); }catch(err){} }
+  txt(e.lote||"",X(16),Y(436),F(22),{maxW:X(180)});
+  if(em.cnpj) txt("CNPJ "+em.cnpj,X(200),Y(434),F(18),{maxW:X(264),align:"right"});
+  if(em.razao) txt(em.razao,X(200),Y(454),F(18),{maxW:X(264),align:"right"});
+  return {cv,W,H};
+}
+function bytesB64(u8){ let s=""; for(let i=0;i<u8.length;i+=0x8000) s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000)); return btoa(s) }
+function asciiBytes(t){ const u=new Uint8Array(t.length); for(let i=0;i<t.length;i++) u[i]=t.charCodeAt(i)&0x7f; return u }
+function juntar(partes){ const n=partes.reduce((a,p)=>a+p.length,0), u=new Uint8Array(n); let o=0; for(const p of partes){u.set(p,o);o+=p.length} return u }
+function cabecalhoTSPL(un){ const {w,h}=tam(), im=impDe(un);
+  return `SIZE ${w} mm,${h} mm\r\nGAP ${Number(im.gap)||0} mm,0 mm\r\nDIRECTION ${im.girar?0:1},0\r\nREFERENCE ${Math.round((Number(im.ajX)||0)*8)},${Math.round((Number(im.ajY)||0)*8)}\r\nDENSITY ${Math.min(15,Math.max(0,Number(im.dens)||8))}\r\nSPEED 4\r\nSET TEAR ON\r\n`; }
+async function gerarTSPL(e,copias){
+  const {cv,W,H}=await desenharEtiqueta(e), im=impDe(e.unidade);
+  const d=cv.getContext("2d").getImageData(0,0,W,H).data, bpr=Math.ceil(W/8), bm=new Uint8Array(bpr*H);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){ const o=(y*W+x)*4; const preto=(d[o]+d[o+1]+d[o+2])/3<128;
+    /* TSPL: bit 0 = imprime (preto), 1 = branco */ if(preto===!!im.inverter) bm[y*bpr+(x>>3)]|=(128>>(x&7)); }
+  return bytesB64(juntar([asciiBytes(cabecalhoTSPL(e.unidade)+`CLS\r\nBITMAP 0,0,${bpr},${H},0,`),bm,asciiBytes(`\r\nPRINT 1,${Math.max(1,copias||1)}\r\n`)]));
+}
+async function trabalhoImpressao(e,copias){
+  const im=impDe(e.unidade);
+  if(im.tipo==="tspl") return {formato:"tspl",zpl:"",dados:await gerarTSPL(e,copias)};
+  return {formato:"zpl",zpl:await gerarZPL(e,copias)};
+}
+function caixinhaDesatualizada(un){ return Object.values(pontes).some(p=>(p.unidades||[]).includes(un)&&String(p.versao||"1.0.0")<"1.1") }
 async function enviarZebra(lista){
   if(!db){toast("Sem conexão com os dados");return}
   for(const e of lista){
     const copias=Math.max(1,e.qtd||1);
-    try{ const ref=await db.collection("impressoes").add({unidade:e.unidade||"",zpl:await gerarZPL(e,copias),copias,lote:e.lote||"",produto:e.produto||"",status:"pendente",criadoEm:new Date().toISOString(),por:quem()});
+    if(impDe(e.unidade).tipo==="tspl"&&caixinhaDesatualizada(e.unidade)){ toast(`A caixinha de ${unCurta(e.unidade)} precisa ser atualizada para essa impressora (veja Ajustes).`); continue }
+    try{ const ref=await db.collection("impressoes").add({unidade:e.unidade||"",...await trabalhoImpressao(e,copias),copias,lote:e.lote||"",produto:e.produto||"",status:"pendente",criadoEm:new Date().toISOString(),por:quem()});
       acompanharImpressao(ref,e.produto||"Etiqueta",e.unidade||""); }catch(err){erro(err)}
   }
 }
+async function calibrarTSPL(un){
+  if(!db) return; if(caixinhaDesatualizada(un)){ toast(`Atualize a caixinha de ${unCurta(un)} primeiro`); return }
+  const dados=bytesB64(asciiBytes(cabecalhoTSPL(un)+"GAPDETECT\r\n"));
+  try{ const ref=await db.collection("impressoes").add({unidade:un,formato:"tspl",zpl:"",dados,copias:1,lote:"CALIBRAR",produto:"Calibração do sensor",status:"pendente",criadoEm:new Date().toISOString(),por:quem()});
+    acompanharImpressao(ref,"Calibração do sensor",un); }catch(err){erro(err)}
+}
 function acompanharImpressao(ref,nome,un){
-  toast(`Enviando para a Zebra: ${nome}…`); let fim=false;
+  toast(`Enviando para a impressora: ${nome}…`); let fim=false;
   const off=ref.onSnapshot(s=>{ const d=s.exists?s.data():null; if(!d||fim) return;
-    if(d.status==="impresso"){fim=true;off();toast(`Impresso na Zebra: ${nome}`)}
-    else if(d.status==="erro"){fim=true;off();toast(`Erro na Zebra (${unCurta(un)}): ${d.erro||"verifique a impressora"}`)} },()=>{});
+    if(d.status==="impresso"){fim=true;off();toast(`Enviado para a impressora: ${nome}`)}
+    else if(d.status==="erro"){fim=true;off();toast(`Erro na impressora (${unCurta(un)}): ${d.erro||"verifique a impressora"}`)} },()=>{});
   setTimeout(()=>{ if(!fim){ fim=true; off(); toast(`A caixinha de ${unCurta(un)} não respondeu. A etiqueta sai quando ela voltar. Confira se está ligada.`) } },25000);
 }
 async function imprimirEtiquetas(lista){ if(cfg.zebraAtiva) return enviarZebra(lista); return baixarPdf(lista); }
@@ -1456,8 +1529,29 @@ function renderZebra(){
     return `<div class="prow"><span class="pname">Caixinha ${esc(id)}<small class="muted" style="display:block;font-weight:400">${esc((p.unidades||[]).map(unCurta).join(", "))} · impressora: ${esc(p.impressora||"?")}${p.ultimoErro?` · último erro: ${esc(p.ultimoErro)}`:""}</small></span><span class="pill ${on?"good":"bad"}">${on?"Online":"Desligada"}</span><span class="muted" style="font-size:12px">visto ${p.visto?fmt(p.visto):"—"}</span></div>`}).join("")
     :`<p class="muted" style="margin:0;font-size:14px">Nenhuma caixinha conectada ainda. Depois de instalar, ela aparece aqui.</p>`;
   $("#zebraTestes").innerHTML=(cfg.unidades||[]).map(u=>`<button type="button" class="btn sm" data-zteste="${esc(u)}">Imprimir teste · ${esc(unCurta(u))}</button>`).join("");
+  renderImpUnid();
 }
-$("#cZebra").onchange=async()=>{ if(!guard()) {renderZebra();return} await salvarCfgParcial({zebraAtiva:$("#cZebra").checked}); toast($("#cZebra").checked?"Impressão direta na Zebra ativada":"Voltou a gerar PDF"); };
+function renderImpUnid(){
+  const B=$("#impUnid"); if(!B) return; const foco=document.activeElement&&B.contains(document.activeElement); if(foco) return;
+  B.innerHTML=(cfg.unidades||[]).map(u=>{ const im=impDe(u), t=im.tipo==="tspl", old=t&&caixinhaDesatualizada(u);
+    return `<div class="improw" data-un="${esc(u)}"><div class="top"><strong>${esc(unCurta(u))}</strong>
+      <select data-k="tipo" aria-label="Tipo de impressora de ${esc(unCurta(u))}"><option value="zpl"${t?"":" selected"}>Zebra (ZPL)</option><option value="tspl"${t?" selected":""}>Tomate / Elgin / genérica (TSPL)</option></select></div>
+      ${old?`<div class="warn">A caixinha dessa loja está numa versão antiga e não imprime em TSPL. Atualize a caixinha (comando de atualização).</div>`:""}
+      ${t?`<div class="tsplopts">
+        <label>Mover para a direita (mm)<input type="number" step="0.5" data-k="ajX" value="${esc(im.ajX)}"></label>
+        <label>Mover para baixo (mm)<input type="number" step="0.5" data-k="ajY" value="${esc(im.ajY)}"></label>
+        <label>Espaço entre etiquetas (mm)<input type="number" step="0.5" min="0" data-k="gap" value="${esc(im.gap)}"></label>
+        <label>Escuridão (1 a 15)<input type="number" min="1" max="15" data-k="dens" value="${esc(im.dens)}"></label>
+        <label class="inl"><input type="checkbox" data-k="girar"${im.girar?" checked":""}> Girar 180°</label>
+        <label class="inl"><input type="checkbox" data-k="inverter"${im.inverter?" checked":""}> Inverter preto/branco</label>
+      </div><div class="row"><button type="button" class="btn sm ghost" data-calib="${esc(u)}">Calibrar sensor de etiqueta</button></div>`:""}
+    </div>`}).join("");
+}
+$("#impUnid").addEventListener("change",async ev=>{ const el=ev.target.closest("[data-k]"); if(!el) return; if(!guard()){renderImpUnid();return}
+  const u=el.closest(".improw").dataset.un, k=el.dataset.k; const val=el.type==="checkbox"?el.checked:el.type==="number"?Number(el.value):el.value;
+  const imps={...(cfg.impressoras||{})}; imps[u]={...impDe(u),[k]:val}; await salvarCfgParcial({impressoras:imps}); el.blur(); renderImpUnid(); toast("Impressora salva"); });
+$("#impUnid").addEventListener("click",ev=>{ const b=ev.target.closest("[data-calib]"); if(!b) return; if(!guard()) return; calibrarTSPL(b.dataset.calib); });
+$("#cZebra").onchange=async()=>{ if(!guard()) {renderZebra();return} await salvarCfgParcial({zebraAtiva:$("#cZebra").checked}); toast($("#cZebra").checked?"Impressão direta pela caixinha ativada":"Voltou a gerar PDF"); };
 $("#zebraTestes").addEventListener("click",e=>{const b=e.target.closest("[data-zteste]"); if(!b) return; const u=b.dataset.zteste, agora=new Date();
   enviarZebra([{produto:"Teste de impressão",conservacao:"resfriado",manipulado:agora.toISOString(),validade:new Date(agora.getTime()+3*864e5).toISOString(),responsavel:quem(),unidade:u,obs:"",lote:"XGTESTE-"+agora.getHours()+agora.getMinutes(),qtd:1}]);});
 

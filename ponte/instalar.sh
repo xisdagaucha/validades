@@ -23,7 +23,7 @@ esac
 IMP="/dev/usb/lp0"
 if [ ! -e /dev/usb/lp0 ]; then
   echo ""
-  echo "Não encontrei a Zebra no USB."
+  echo "Não encontrei a impressora no USB."
   read -p "Se ela estiver na rede, digite o IP (ex.: 192.168.0.50) ou Enter para usar USB: " IP </dev/tty
   if [ -n "$IP" ]; then IMP="tcp://$IP:9100"; fi
 fi
@@ -32,7 +32,7 @@ echo ">> Instalando programas (pode levar alguns minutos)..."
 sudo apt-get update -y
 sudo apt-get install -y nodejs npm curl
 sudo mkdir -p /opt/ponte-xis
-sudo curl -fsSL "$BASE/ponte.mjs" -o /opt/ponte-xis/ponte.mjs
+sudo curl -fsSL "$BASE/ponte.mjs?t=$(date +%s)" -o /opt/ponte-xis/ponte.mjs
 sudo curl -fsSL "$BASE/package.json" -o /opt/ponte-xis/package.json
 cd /opt/ponte-xis && sudo npm install --omit=dev --no-audit --no-fund
 echo ">> Salvando configuração..."
@@ -69,5 +69,5 @@ echo ""
 echo "=============================================="
 echo "  Pronto! Caixinha da loja: $UNID"
 echo "  Impressora: $IMP"
-echo "  Confira no app: Ajustes > Impressora Zebra"
+echo "  Confira no app: Ajustes > Impressora de etiquetas"
 echo "=============================================="
