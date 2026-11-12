@@ -1498,6 +1498,8 @@ async function trabalhoImpressao(e,copias){
 }
 function caixinhaDesatualizada(un){ return Object.values(pontes).some(p=>(p.unidades||[]).includes(un)&&String(p.versao||"1.0.0")<"1.1") }
 async function enviarZebra(lista){
+  const semCaixinha=lista.filter(e=>impDe(e.unidade).tipo==="pdf");
+  if(semCaixinha.length){ await baixarPdf(semCaixinha); lista=lista.filter(e=>impDe(e.unidade).tipo!=="pdf"); if(!lista.length) return; }
   if(!db){toast("Sem conexão com os dados");return}
   for(const e of lista){
     const copias=Math.max(1,e.qtd||1);
@@ -1535,7 +1537,8 @@ function renderImpUnid(){
   const B=$("#impUnid"); if(!B) return; const foco=document.activeElement&&B.contains(document.activeElement); if(foco) return;
   B.innerHTML=(cfg.unidades||[]).map(u=>{ const im=impDe(u), t=im.tipo==="tspl", old=t&&caixinhaDesatualizada(u);
     return `<div class="improw" data-un="${esc(u)}"><div class="top"><strong>${esc(unCurta(u))}</strong>
-      <select data-k="tipo" aria-label="Tipo de impressora de ${esc(unCurta(u))}"><option value="zpl"${t?"":" selected"}>Zebra (ZPL)</option><option value="tspl"${t?" selected":""}>Tomate / Elgin / genérica (TSPL)</option></select></div>
+      <select data-k="tipo" aria-label="Tipo de impressora de ${esc(unCurta(u))}"><option value="zpl"${im.tipo==="zpl"?" selected":""}>Zebra (ZPL)</option><option value="tspl"${t?" selected":""}>Tomate / Elgin / genérica (TSPL)</option><option value="pdf"${im.tipo==="pdf"?" selected":""}>Sem caixinha: gerar PDF</option></select></div>
+      ${im.tipo==="pdf"?`<div class="muted" style="font-size:13px">Nessa loja o app gera o PDF da etiqueta para imprimir pelo computador (Ctrl+P), até a caixinha ser instalada.</div>`:""}
       ${old?`<div class="warn">A caixinha dessa loja está numa versão antiga e não imprime em TSPL. Atualize a caixinha (comando de atualização).</div>`:""}
       ${t?`<div class="tsplopts">
         <label>Mover para a direita (mm)<input type="number" step="0.5" data-k="ajX" value="${esc(im.ajX)}"></label>
