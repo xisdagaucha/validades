@@ -1508,6 +1508,13 @@ async function enviarZebra(lista){
       acompanharImpressao(ref,e.produto||"Etiqueta",e.unidade||""); }catch(err){erro(err)}
   }
 }
+async function testeTextoTSPL(un){
+  if(!db) return; if(caixinhaDesatualizada(un)){ toast(`Atualize a caixinha de ${unCurta(un)} primeiro`); return }
+  const {w,h}=tam(), W=Math.round(w*8), H=Math.round(h*8);
+  const t=cabecalhoTSPL(un)+`CLS\r\nBOX 8,8,${W-8},${H-8},6\r\nTEXT 30,40,"3",0,1,1,"TESTE TSPL"\r\nTEXT 30,100,"3",0,1,1,"XIS DA GAUCHA"\r\nBAR 30,170,${W-60},30\r\nTEXT 30,230,"2",0,1,1,"${unCurta(un).normalize("NFD").replace(/[^\x20-\x7e]/g,"")}"\r\nPRINT 1,1\r\n`;
+  try{ const ref=await db.collection("impressoes").add({unidade:un,formato:"tspl",zpl:"",dados:bytesB64(asciiBytes(t)),copias:1,lote:"TESTE-TEXTO",produto:"Teste simples",status:"pendente",criadoEm:new Date().toISOString(),por:quem()});
+    acompanharImpressao(ref,"Teste simples",un); }catch(err){erro(err)}
+}
 async function calibrarTSPL(un){
   if(!db) return; if(caixinhaDesatualizada(un)){ toast(`Atualize a caixinha de ${unCurta(un)} primeiro`); return }
   const dados=bytesB64(asciiBytes(cabecalhoTSPL(un)+"GAPDETECT\r\n"));
@@ -1547,13 +1554,14 @@ function renderImpUnid(){
         <label>Escuridão (1 a 15)<input type="number" min="1" max="15" data-k="dens" value="${esc(im.dens)}"></label>
         <label class="inl"><input type="checkbox" data-k="girar"${im.girar?" checked":""}> Girar 180°</label>
         <label class="inl"><input type="checkbox" data-k="inverter"${im.inverter?" checked":""}> Inverter preto/branco</label>
-      </div><div class="row"><button type="button" class="btn sm ghost" data-calib="${esc(u)}">Calibrar sensor de etiqueta</button></div>`:""}
+      </div><div class="row"><button type="button" class="btn sm ghost" data-calib="${esc(u)}">Calibrar sensor de etiqueta</button><button type="button" class="btn sm ghost" data-ttexto="${esc(u)}">Teste simples (só texto)</button></div>`:""}
     </div>`}).join("");
 }
 $("#impUnid").addEventListener("change",async ev=>{ const el=ev.target.closest("[data-k]"); if(!el) return; if(!guard()){renderImpUnid();return}
   const u=el.closest(".improw").dataset.un, k=el.dataset.k; const val=el.type==="checkbox"?el.checked:el.type==="number"?Number(el.value):el.value;
   const imps={...(cfg.impressoras||{})}; imps[u]={...impDe(u),[k]:val}; await salvarCfgParcial({impressoras:imps}); el.blur(); renderImpUnid(); toast("Impressora salva"); });
-$("#impUnid").addEventListener("click",ev=>{ const b=ev.target.closest("[data-calib]"); if(!b) return; if(!guard()) return; calibrarTSPL(b.dataset.calib); });
+$("#impUnid").addEventListener("click",ev=>{ const t=ev.target.closest("[data-ttexto]"); if(t){ if(guard()) testeTextoTSPL(t.dataset.ttexto); return }
+  const b=ev.target.closest("[data-calib]"); if(!b) return; if(!guard()) return; calibrarTSPL(b.dataset.calib); });
 $("#cZebra").onchange=async()=>{ if(!guard()) {renderZebra();return} await salvarCfgParcial({zebraAtiva:$("#cZebra").checked}); toast($("#cZebra").checked?"Impressão direta pela caixinha ativada":"Voltou a gerar PDF"); };
 $("#zebraTestes").addEventListener("click",e=>{const b=e.target.closest("[data-zteste]"); if(!b) return; const u=b.dataset.zteste, agora=new Date();
   enviarZebra([{produto:"Teste de impressão",conservacao:"resfriado",manipulado:agora.toISOString(),validade:new Date(agora.getTime()+3*864e5).toISOString(),responsavel:quem(),unidade:u,obs:"",lote:"XGTESTE-"+agora.getHours()+agora.getMinutes(),qtd:1}]);});
