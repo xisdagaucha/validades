@@ -1321,7 +1321,7 @@ function opcoesLoja(){ const o=[]; (cfg.unidades||[]).forEach(u=>{ const ms=marc
 function renderUnPick(){
   const last=lsGet("xg-un-nova"), lastM=lsGet("xg-marca-nova");
   $("#nUnids").innerHTML=opcoesLoja().map(({u,m,varias})=>{const [a,b]=u.split(/\s+[–-]\s+/); const ult=u===last&&(!varias||m===lastM); const mk=marcaDe(m), lg=logoDe(m);
-    return `<button type="button" class="pbtn un${ult?" last":""}" data-u="${esc(u)}" data-m="${esc(m)}">${multiMarca()?`<img class="unlogo" src="${lg.src}" alt="${esc(mk.nome)}">`:""}<b>${esc(b||a)}${varias?` · ${esc(mk.nome)}`:""}</b>${b?`<small>${esc(a)}</small>`:""}${ult?`<small class="tag">última usada aqui</small>`:""}</button>`}).join("");
+    return `<button type="button" class="pbtn un${ult?" last":""}" data-u="${esc(u)}" data-m="${esc(m)}">${multiMarca()?`<img class="unlogo" src="${lg.src}" alt="${esc(mk.nome)}">`:""}<b>${esc(b||a)}</b>${b?`<small>${esc(a)}</small>`:""}${ult?`<small class="tag">última usada aqui</small>`:""}</button>`}).join("");
 }
 function renderGrupoPick(){
   const q=semAcento($("#nBusca").value.trim()), el=$("#nGrupos");
