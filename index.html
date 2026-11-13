@@ -287,7 +287,10 @@ body.selmode .item .acts{display:none}
 .manipf{align-items:end}
 
 /* Ações */
-.acoes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.acoes{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
+.pfbusca{font:inherit;font-size:17px;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;width:100%;background:var(--surface);color:inherit}
+.pfqtd{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end}
+.pfqtd input{font-size:26px;font-family:var(--mono);min-height:60px;text-align:center}
 @media (max-width:640px){.acoes{grid-template-columns:1fr}}
 .acao{appearance:none;border:2px solid transparent;background:var(--surface);border-radius:16px;box-shadow:var(--shadow);padding:22px 16px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;text-align:center;min-height:170px;justify-content:center}
 .acao:hover{border-color:var(--brand)}
@@ -519,6 +522,29 @@ body.selmode .item .acts{display:none}
     <div class="card"><h3>Registradas hoje</h3><div id="mpHoje" class="list"></div></div>
   </section>
 
+  <!-- PERDA (funcionários) -->
+  <section role="tabpanel" id="p-perda" hidden>
+    <div class="row"><button type="button" class="btn sm" data-inicio>← Início</button></div>
+    <div class="pick-h"><h2>Registrar perda</h2><p class="muted">Algo caiu, estragou ou deu errado no preparo? Registre aqui para a gestora acompanhar.</p></div>
+    <form class="card mpcard" id="fPf" autocomplete="off">
+      <div class="fgrid">
+        <div class="field"><label for="pfQuem">Quem está registrando</label><select id="pfQuem"></select></div>
+        <div class="field"><span class="lbl">Loja</span><div class="chips" id="pfLoja"></div></div>
+      </div>
+      <div class="field"><span class="lbl">1. Qual produto?</span>
+        <input type="search" id="pfBusca" class="pfbusca" placeholder="Digite para procurar (ex.: maionese)" aria-label="Procurar produto">
+        <div class="mpprods" id="pfProds"></div></div>
+      <div class="field"><span class="lbl">2. Quanto perdeu?</span>
+        <div class="pfqtd"><input type="text" id="pfQtd" inputmode="decimal" placeholder="ex.: 1,5" aria-label="Quantidade perdida">
+        <div class="chips" id="pfMed"><button type="button" class="chip" data-m="kg" aria-pressed="true">kg</button><button type="button" class="chip" data-m="g" aria-pressed="false">g</button><button type="button" class="chip" data-m="un" aria-pressed="false">un</button><button type="button" class="chip" data-m="L" aria-pressed="false">L</button></div></div></div>
+      <div class="field"><span class="lbl">3. O que aconteceu?</span><div class="chips big" id="pfMot"></div></div>
+      <div class="field"><label for="pfObs">Observação (opcional)</label><input type="text" id="pfObs" placeholder="ex.: pote caiu na hora de guardar"></div>
+      <div class="mpres" id="pfRes">Escolha o produto, a quantidade e o motivo.</div>
+      <button class="btn primary xl" type="submit">Salvar perda</button>
+    </form>
+    <div class="card"><h3>Perdas registradas hoje</h3><div id="pfHoje" class="list"></div></div>
+  </section>
+
   <!-- DAR BAIXA -->
   <section role="tabpanel" id="p-baixa" hidden>
     <div class="row"><button type="button" class="btn sm" data-inicio>← Início</button></div>
@@ -565,6 +591,7 @@ body.selmode .item .acts{display:none}
       <div class="acoes" id="nAcoes">
         <button type="button" class="acao" data-acao="imprimir"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg></span><span class="tx"><b>Imprimir etiqueta</b><small>Etiqueta de validade de um produto</small></span></button>
         <button type="button" class="acao" data-acao="manip"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16"/><path d="M6 20l2-9h8l2 9"/><path d="M9 11V8a3 3 0 016 0v3"/></svg></span><span class="tx"><b>Manipulação</b><small>Registrar peso antes e depois</small></span></button>
+        <button type="button" class="acao" data-acao="perda"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 16H3z"/><path d="M12 10v4"/><path d="M12 17v.5"/></svg></span><span class="tx"><b>Registrar perda</b><small>Caiu, estragou, errou o preparo…</small></span></button>
         <button type="button" class="acao danger" data-acao="baixa"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></svg></span><span class="tx"><b>Dar baixa</b><small>Acabou o produto ou vai descartar</small></span></button>
       </div>
     </div>
@@ -1025,7 +1052,7 @@ tick(); setInterval(()=>{tick(); if(tab==="painel") renderPainel();},30000);
 function go(t){
   if(GTABS.includes(t)&&!has(TABPERM[t])) t="nova";
   const prevTab=tab; tab=t;
-  document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t||(b.dataset.tab==="nova"&&(t==="manip"||t==="baixa"))));
+  document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t||(b.dataset.tab==="nova"&&(t==="manip"||t==="baixa"||t==="perda"))));
   document.querySelectorAll("section[role=tabpanel]").forEach(p=>p.hidden=p.id!=="p-"+t);
   lsSet("xg-tab",t);
   if(t==="painel"){renderPainel(); setTimeout(()=>$("#q").focus({preventScroll:true}),50)}
@@ -1033,6 +1060,7 @@ function go(t){
   if(t==="produtos") renderProdutos();
   if(t==="baixa"){ prepBaixa(); }
   if(t==="manip"){ prepManip(); carregarMpHoje(); }
+  if(t==="perda"){ prepPf(); carregarPfHoje(); }
   if(t==="rastrear"){ subEmit(); setTimeout(()=>$("#rq").focus({preventScroll:true}),50); }
   if(t==="historico"){subHist(); subEmit(); renderHist(); if(!$("#mDe").value) setPeriodo("1"); else carregarMov();}
   if(t==="funcionarios") renderFunc();
@@ -1277,6 +1305,8 @@ $("#nAcoes").addEventListener("click",ev=>{ const b=ev.target.closest("[data-aca
   if(a==="imprimir"){ const us=cfg.unidades||[]; if(us.length===1){unSel=us[0];$("#nUn").value=unSel;irPara("grupo")} else irPara("unid"); return }
   if(a==="manip"){ go("manip"); garantirOpcao($("#mpQuem"),r.nome); lsSet("xg-mp-quem",r.nome);
     if(r.unidade&&(cfg.unidades||[]).includes(r.unidade)){mpLoja=r.unidade;lsSet("xg-mp-loja",mpLoja)} prepManip(); garantirOpcao($("#mpQuem"),r.nome); return }
+  if(a==="perda"){ go("perda"); garantirOpcao($("#pfQuem"),r.nome); lsSet("xg-pf-quem",r.nome);
+    if(r.unidade&&(cfg.unidades||[]).includes(r.unidade)){pfLoja=r.unidade;lsSet("xg-pf-loja",pfLoja)} prepPf(); garantirOpcao($("#pfQuem"),r.nome); return }
   if(a==="baixa"){ go("baixa"); garantirOpcao($("#bxQuem"),r.nome); lsSet("xg-bx-quem",r.nome); setTimeout(()=>$("#bxq").focus({preventScroll:true}),60); }
 });
 function calcRend(){ const b=numBR($("#nBruto").value), f=numBR($("#nFinal").value), m=$("#nRMed").value, el=$("#nRendRes");
@@ -1632,6 +1662,54 @@ async function carregarMpHoje(){ if(!db) return; const h=new Date(); h.setHours(
     $("#mpHoje").innerHTML=l.length?l.map(x=>`<div class="mprow"><span><strong>${esc(x.produto)}</strong><small class="muted">${fmt(x.em).slice(9)} · ${esc(x.por)} · ${esc(unCurta(x.unidade))}</small></span><span class="mono">${nf(x.pesoBruto)} → ${nf(x.pesoFinal)} ${esc(x.medida||"")}</span><span class="pill ${x.rendimento>=85?"good":x.rendimento>=70?"soon":"bad"}">${String(x.rendimento).replace(".",",")}%</span></div>`).join(""):`<p class="muted" style="margin:0">Nenhuma manipulação registrada hoje.</p>`;
   }catch(err){} }
 
+/* ---------- perda registrada pelos funcionários ---------- */
+let pfLoja=null, pfProd=null, pfMotivo="", pfMed="kg";
+function prepPf(){
+  const cur=$("#pfQuem").value||lsGet("xg-pf-quem")||"";
+  $("#pfQuem").innerHTML=`<option value="">Escolha seu nome…</option>`+[...funcionarios].sort((a,b)=>a.nome.localeCompare(b.nome)).map(f=>`<option${f.nome===cur?" selected":""}>${esc(f.nome)}</option>`).join("");
+  if(!pfLoja) pfLoja=lsGet("xg-pf-loja")||lsGet("xg-un-nova")||null; if(pfLoja&&!(cfg.unidades||[]).includes(pfLoja)) pfLoja=null;
+  if(!pfLoja&&(cfg.unidades||[]).length===1) pfLoja=cfg.unidades[0];
+  $("#pfLoja").innerHTML=(cfg.unidades||[]).map(u=>`<button type="button" class="chip" data-u="${esc(u)}" aria-pressed="${u===pfLoja}">${esc(unCurta(u))}</button>`).join("");
+  $("#pfMot").innerHTML=MOTIVOS_PERDA.filter(m=>m!=="Venceu").map(m=>`<button type="button" class="chip" data-m="${esc(m)}" aria-pressed="${m===pfMotivo}">${esc(m)}</button>`).join("");
+  renderPfProds(); calcPf();
+}
+function renderPfProds(){
+  const q=$("#pfBusca").value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+  let l=produtos.filter(p=>p.ativo!==false).sort((a,b)=>a.nome.localeCompare(b.nome));
+  if(q) l=l.filter(p=>(p.nome+" "+(p.categoria||"")).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").includes(q));
+  const sel=prodDe(pfProd); if(sel&&!l.includes(sel)) l=[sel,...l];
+  $("#pfProds").innerHTML=l.slice(0,60).map(p=>`<button type="button" class="mpp${p.id===pfProd?" sel":""}" data-p="${esc(p.id)}">${esc(p.nome)}<small>${esc(p.categoria||"")}</small></button>`).join("")||`<span class="muted">Nenhum produto encontrado.</span>`;
+}
+function setPfMed(m){ pfMed=m; $("#pfMed").querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed",x.dataset.m===m)) }
+function calcPf(){ const p=prodDe(pfProd), q=numBR($("#pfQtd").value), el=$("#pfRes"); el.className="mpres";
+  if(!p||!q){ el.textContent=!p?"Escolha o produto, a quantidade e o motivo.":"Informe quanto perdeu."; return }
+  const val=has("perdas")&&p.custo&&(p.medida||"kg")===pfMed?q*p.custo:null;
+  el.innerHTML=`<span>Perda: <b>${q.toLocaleString("pt-BR",{maximumFractionDigits:3})} ${esc(pfMed)}</b> de ${esc(p.nome)}</span>${val!=null?`<span>Valor: <b>${brl(val)}</b></span>`:""}`; el.classList.add("bad"); }
+$("#pfLoja").addEventListener("click",ev=>{const b=ev.target.closest("[data-u]"); if(!b) return; pfLoja=b.dataset.u; lsSet("xg-pf-loja",pfLoja); $("#pfLoja").querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed",x===b))});
+$("#pfBusca").addEventListener("input",renderPfProds);
+$("#pfProds").addEventListener("click",ev=>{const b=ev.target.closest("[data-p]"); if(!b) return; pfProd=b.dataset.p; const p=prodDe(pfProd); if(p&&["kg","g","un","L"].includes(p.medida)) setPfMed(p.medida); renderPfProds(); calcPf(); $("#pfQtd").focus({preventScroll:true})});
+$("#pfMed").addEventListener("click",ev=>{const b=ev.target.closest("[data-m]"); if(b){setPfMed(b.dataset.m); calcPf()}});
+$("#pfMot").addEventListener("click",ev=>{const b=ev.target.closest("[data-m]"); if(!b) return; pfMotivo=b.dataset.m; $("#pfMot").querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed",x===b))});
+$("#pfQtd").addEventListener("input",calcPf);
+$("#pfQuem").addEventListener("change",()=>lsSet("xg-pf-quem",$("#pfQuem").value));
+$("#fPf").addEventListener("submit",async ev=>{ ev.preventDefault();
+  const quem=$("#pfQuem").value, p=prodDe(pfProd), q=numBR($("#pfQtd").value);
+  if(!quem){toast("Escolha seu nome");$("#pfQuem").focus();return}
+  if(!pfLoja){toast("Escolha a loja");return}
+  if(!p){toast("Escolha o produto");$("#pfBusca").focus();return}
+  if(!q||q<=0){toast("Informe quanto perdeu");$("#pfQtd").focus();return}
+  if(!pfMotivo){toast("Escolha o que aconteceu");return}
+  const btn=ev.submitter||$("#fPf button[type=submit]"); btn.disabled=true;
+  await registrarPerda({produto:p.nome,produtoId:p.id,categoria:p.categoria,qtd:q,medida:pfMed,motivo:pfMotivo,unidade:pfLoja,por:quem,origem:"funcionario",obs:$("#pfObs").value.trim()});
+  btn.disabled=false; toast(`Perda registrada: ${q.toLocaleString("pt-BR")} ${pfMed} de ${p.nome}`);
+  pfProd=null; pfMotivo=""; $("#pfQtd").value=""; $("#pfObs").value=""; $("#pfBusca").value=""; prepPf(); carregarPfHoje(); window.scrollTo({top:0,behavior:"smooth"});
+});
+async function carregarPfHoje(){ if(!db) return; const h=new Date(); h.setHours(0,0,0,0);
+  try{ const s=await db.collection("perdas").where("em",">=",h.toISOString()).orderBy("em","desc").limit(200).get();
+    const l=s.docs.map(d=>d.data()).filter(x=>x.origem==="funcionario"||x.origem==="manual"); const nf=n=>Number(n).toLocaleString("pt-BR",{maximumFractionDigits:3});
+    $("#pfHoje").innerHTML=l.length?l.map(x=>`<div class="mprow"><span><strong>${esc(x.produto)}</strong><small class="muted">${fmt(x.em).slice(9)} · ${esc(x.por)} · ${esc(unCurta(x.unidade))} · ${esc(x.motivo||"")}</small></span><span class="mono">${x.qtd!=null?nf(x.qtd):"—"} ${esc(x.medida||"")}</span></div>`).join(""):`<p class="muted" style="margin:0">Nenhuma perda registrada hoje.</p>`;
+  }catch(err){} }
+
 document.querySelectorAll("[data-inicio]").forEach(b=>b.onclick=()=>go("nova"));
 
 /* ---------- DAR BAIXA (todos) ---------- */
@@ -1842,7 +1920,7 @@ function renderPerdas(){
   const nf=n=>n.toLocaleString("pt-BR",{maximumFractionDigits:2});
   $("#pdRend").innerHTML=`<h3>Rendimento na manipulação</h3>`+(man.length?`<div class="tablewrap" style="box-shadow:none"><table class="hist"><thead><tr><th>Produto</th><th>Vezes</th><th>Peso antes</th><th>Aproveitado</th><th>Perda</th><th>Aproveitamento</th><th>Valor perdido</th></tr></thead><tbody>${Object.values(rp).sort((a,b)=>(a.f/a.b)-(b.f/b.b)).map(r=>{const pct=r.f/r.b*100;return `<tr><td><strong>${esc(r.p)}</strong></td><td class="mono">${r.n}</td><td class="mono">${nf(r.b)} ${esc(r.m)}</td><td class="mono">${nf(r.f)} ${esc(r.m)}</td><td class="mono">${nf(r.b-r.f)} ${esc(r.m)}</td><td><span class="pill ${pct>=85?"good":pct>=70?"soon":"bad"}">${pct.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</span></td><td class="mono">${r.v?brl(r.v):"—"}</td></tr>`}).join("")}</tbody></table></div>`:`<p class="muted" style="margin:0">Nenhuma manipulação registrada no período. Registre pelo botão “+ Registrar” → Manipulação, ou na hora de imprimir a etiqueta.</p>`);
   const podeExcluir=has("perdas");
-  $("#pdBody").innerHTML=rows.length?rows.map(x=>`<tr><td class="mono">${fmt(x.em)}</td><td><strong>${esc(x.produto)}</strong>${x.obs?`<small class="muted" style="display:block">${esc(x.obs)}</small>`:""}</td><td class="mono">${x.qtd?String(x.qtd).replace(".",",")+" "+esc(x.medida||""):"—"}${x.pesoBruto?`<small class="muted" style="display:block">${nf(x.pesoBruto)} → ${nf(x.pesoFinal)} · ${String(x.rendimento||"").replace(".",",")}% aprov.</small>`:""}</td><td>${esc(x.motivo)}</td><td>${esc(unCurta(x.unidade))}</td><td>${esc(x.por)}</td><td>${x.origem==="etiqueta"?`<span class="pill neutral">Etiqueta</span>`:x.origem==="manipulacao"?`<span class="pill soon">Manipulação</span>`:`<span class="pill warn">Manual</span>`}</td><td class="mono">${x.valor!=null?brl(x.valor):"—"}</td>
+  $("#pdBody").innerHTML=rows.length?rows.map(x=>`<tr><td class="mono">${fmt(x.em)}</td><td><strong>${esc(x.produto)}</strong>${x.obs?`<small class="muted" style="display:block">${esc(x.obs)}</small>`:""}</td><td class="mono">${x.qtd?String(x.qtd).replace(".",",")+" "+esc(x.medida||""):"—"}${x.pesoBruto?`<small class="muted" style="display:block">${nf(x.pesoBruto)} → ${nf(x.pesoFinal)} · ${String(x.rendimento||"").replace(".",",")}% aprov.</small>`:""}</td><td>${esc(x.motivo)}</td><td>${esc(unCurta(x.unidade))}</td><td>${esc(x.por)}</td><td>${x.origem==="etiqueta"?`<span class="pill neutral">Etiqueta</span>`:x.origem==="manipulacao"?`<span class="pill soon">Manipulação</span>`:x.origem==="funcionario"?`<span class="pill warn">Funcionário</span>`:`<span class="pill warn">Manual</span>`}</td><td class="mono">${x.valor!=null?brl(x.valor):"—"}</td>
     <td>${podeExcluir?(pdConfDel===x.id?`<button class="btn sm danger" data-pdel="${esc(x.id)}">Confirmar</button><button class="btn sm ghost" data-pcanc>×</button>`:`<button class="btn sm ghost" data-pask="${esc(x.id)}">Excluir</button>`):""}</td></tr>`).join(""):`<tr><td colspan="9" class="muted" style="padding:18px">Nenhuma perda no período.</td></tr>`;
 }
 $("#pdBody").addEventListener("click",async ev=>{const b=ev.target.closest("button"); if(!b) return;
@@ -1852,7 +1930,7 @@ function nomePerPerda(){const {de,ate}=perPerda(); return `${dStr(de)}_a_${dStr(
 $("#bPdCsv").onclick=()=>{ const rows=perdasFiltradas(); if(!rows.length){toast("Nenhuma perda no período");return}
   const q=v=>{v=String(v??"");return /[;"\n]/.test(v)?`"${v.replace(/"/g,'""')}"`:v};
   const cab=["Data","Produto","Grupo","Quantidade perdida","Medida","Motivo","Loja","Quem","Origem","Peso antes","Peso aproveitado","Aproveitamento %","Custo unitário","Valor","Lote","Observação"];
-  const lin=rows.map(x=>[fmt(x.em),x.produto,x.categoria||"",x.qtd?String(x.qtd).replace(".",","):"",x.medida||"",x.motivo,x.unidade,x.por,x.origem==="etiqueta"?"Etiqueta":x.origem==="manipulacao"?"Manipulação":"Manual",x.pesoBruto?String(x.pesoBruto).replace(".",","):"",x.pesoFinal?String(x.pesoFinal).replace(".",","):"",x.rendimento!=null?String(x.rendimento).replace(".",","):"",x.custoUnit?String(x.custoUnit).replace(".",","):"",x.valor!=null?String(x.valor.toFixed(2)).replace(".",","):"",x.lote||"",x.obs||""].map(q).join(";"));
+  const lin=rows.map(x=>[fmt(x.em),x.produto,x.categoria||"",x.qtd?String(x.qtd).replace(".",","):"",x.medida||"",x.motivo,x.unidade,x.por,x.origem==="etiqueta"?"Etiqueta":x.origem==="manipulacao"?"Manipulação":x.origem==="funcionario"?"Funcionário":"Manual",x.pesoBruto?String(x.pesoBruto).replace(".",","):"",x.pesoFinal?String(x.pesoFinal).replace(".",","):"",x.rendimento!=null?String(x.rendimento).replace(".",","):"",x.custoUnit?String(x.custoUnit).replace(".",","):"",x.valor!=null?String(x.valor.toFixed(2)).replace(".",","):"",x.lote||"",x.obs||""].map(q).join(";"));
   salvarArquivo(`relatorio-perdas_${nomePerPerda()}.csv`,"﻿"+[cab.join(";"),...lin].join("\r\n")); };
 $("#bPdPdf").onclick=()=>{ if(!window.jspdf){toast("Gerador de PDF não carregou. Recarregue a página.");return}
   const rows=perdasFiltradas(); if(!rows.length){toast("Nenhuma perda no período");return}
