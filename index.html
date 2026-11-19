@@ -123,6 +123,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand);outline:none}
 .btn.sm{min-height:34px;padding:6px 10px;font-size:13px}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
+.lvgrid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+@media (max-width:820px){.lvgrid{grid-template-columns:1fr}}
+#lvCanvas{width:100%;height:auto;border:1.5px solid var(--line);border-radius:10px;background:#fff}
 .chip{appearance:none;border:1.5px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 13px;font-weight:700;font-size:13px;cursor:pointer}
 .chip[aria-pressed="true"]{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
 
@@ -474,6 +477,7 @@ body.selmode .item .acts{display:none}
   <button class="tab" role="tab" id="t-historico" aria-selected="false" data-tab="historico" data-g="movimentacao">Movimentação</button>
   <button class="tab" role="tab" id="t-perdas" aria-selected="false" data-tab="perdas" data-g="perdas">Perdas</button>
   <button class="tab" role="tab" id="t-permissoes" aria-selected="false" data-tab="permissoes" data-g="permissoes">Permissões</button>
+  <button class="tab" role="tab" id="t-livre" aria-selected="false" data-tab="livre" data-g="ajustes">Etiqueta livre</button>
   <button class="tab" role="tab" id="t-ajustes" aria-selected="false" data-tab="ajustes" data-g="ajustes">Ajustes</button>
 </div></nav>
 
@@ -816,6 +820,33 @@ body.selmode .item .acts{display:none}
     <p class="muted" style="font-size:13px;margin:0">O valor é calculado com o custo do produto (cadastre em Produtos → Editar → Custo) vezes a quantidade perdida. Descartes feitos pelas etiquetas entram aqui automaticamente.</p>
   </section>
 
+  <!-- ETIQUETA LIVRE (só gestão) -->
+  <section role="tabpanel" id="p-livre" hidden>
+    <h2>Etiqueta livre</h2>
+    <p class="muted" style="margin:0">Para identificar prateleiras, caixas, potes, armários, pastas e uniformes. Ela só imprime, não entra no controle de validades.</p>
+    <div class="lvgrid">
+      <form class="card" id="fLivre" autocomplete="off">
+        <div class="field"><span class="lbl">Tipo</span><div class="chips big" id="lvMod">
+          <button type="button" class="chip" data-m="texto" aria-pressed="true">Texto livre</button>
+          <button type="button" class="chip" data-m="prat" aria-pressed="false">Prateleira / local</button>
+          <button type="button" class="chip" data-m="func" aria-pressed="false">Nome de funcionário</button></div></div>
+        <div class="field" id="lvFuncF" hidden><label for="lvFunc">Funcionário</label><select id="lvFunc"></select></div>
+        <div class="field"><label for="lvT">Texto principal (letra grande)</label><input type="text" id="lvT" maxlength="60" required></div>
+        <div class="field"><label for="lvL2">Linha 2 (opcional)</label><input type="text" id="lvL2" maxlength="60"></div>
+        <div class="field"><label for="lvL3">Linha 3 (opcional)</label><input type="text" id="lvL3" maxlength="60"></div>
+        <div class="field"><span class="lbl">Imprimir na loja</span><div class="chips" id="lvLoja"></div></div>
+        <div class="field"><span class="lbl">Logo</span><div class="chips" id="lvMarca"></div></div>
+        <div class="row" style="gap:18px">
+          <label style="display:flex;align-items:center;gap:8px;font-weight:600"><input type="checkbox" id="lvBorda"> Moldura</label>
+          <label style="display:flex;align-items:center;gap:8px;font-weight:600"><input type="checkbox" id="lvData"> Data de hoje</label>
+          <label style="display:flex;align-items:center;gap:8px;font-weight:600">Quantidade <input type="number" id="lvQtd" min="1" max="50" value="1" style="width:80px"></label>
+        </div>
+        <div class="row"><button class="btn primary xl" type="submit">Imprimir etiqueta</button><button class="btn ghost" type="button" id="bLvLimpar">Limpar</button></div>
+      </form>
+      <div class="card"><span class="lbl">Prévia</span><canvas id="lvCanvas" width="480" height="480"></canvas></div>
+    </div>
+  </section>
+
   <!-- PERMISSÕES -->
   <section role="tabpanel" id="p-permissoes" hidden>
     <h2>Permissões de login</h2>
@@ -904,7 +935,7 @@ let filtroStatus=null, hlLote=null, openConfirm=null, histSub=null, editProd=nul
 let tab="painel", sess=null, isAdmin=true, lockMode="entrar";
 const PERMS=[["painel","Painel de validades"],["rastrear","Bipar, rastrear e dar baixa"],["movimentacao","Movimentação"],["perdas","Perdas"],["produtos","Produtos"],["funcionarios","Funcionários"],["permissoes","Permissões"],["ajustes","Ajustes"]];
 const PRESETS={impressao:{n:"Só impressão",p:[]},lider:{n:"Líder de turno",p:["painel","rastrear"]},supervisor:{n:"Supervisor",p:["painel","rastrear","movimentacao","perdas","produtos"]},gestor:{n:"Gestor (tudo)",p:PERMS.map(x=>x[0])}};
-const TABPERM={painel:"painel",rastrear:"rastrear",historico:"movimentacao",perdas:"perdas",produtos:"produtos",funcionarios:"funcionarios",permissoes:"permissoes",ajustes:"ajustes"};
+const TABPERM={livre:"ajustes",painel:"painel",rastrear:"rastrear",historico:"movimentacao",perdas:"perdas",produtos:"produtos",funcionarios:"funcionarios",permissoes:"permissoes",ajustes:"ajustes"};
 const GTABS=Object.keys(TABPERM);
 async function hashPin(p,salt){salt=salt||"xg-gestora";try{const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(salt+":"+p));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}catch(e){let h=5381;for(const c of salt+":"+p)h=((h<<5)+h+c.charCodeAt(0))|0;return "d"+h}}
 function temPin(){return !!cfg.pinHash}
@@ -1007,7 +1038,7 @@ $("#permBody").addEventListener("click",async ev=>{
 $("#permBody").addEventListener("keydown",ev=>{ if(ev.key==="Enter"&&ev.target.matches("[data-newpin]")){ev.preventDefault();ev.target.closest("td").querySelector("[data-savepin]").click()} });
 
 /* ordem das abas */
-const ORDEM_PADRAO=["painel","nova","manip","baixa","rastrear","historico","perdas","produtos","funcionarios","permissoes","ajustes"];
+const ORDEM_PADRAO=["painel","nova","manip","baixa","rastrear","historico","perdas","produtos","funcionarios","permissoes","livre","ajustes"];
 function ordemAtual(){ const todas=[...document.querySelectorAll(".tabs-in .tab")].map(b=>b.dataset.tab);
   const o=(Array.isArray(cfg.ordemAbas)?cfg.ordemAbas:ORDEM_PADRAO).filter(t=>todas.includes(t)); todas.forEach(t=>{if(!o.includes(t)) o.push(t)}); return o; }
 function applyOrdem(){ const box=document.querySelector(".tabs-in"); ordemAtual().forEach(t=>{const b=box.querySelector(`.tab[data-tab="${t}"]`); if(b) box.appendChild(b)}); }
@@ -1101,6 +1132,7 @@ function go(t){
   if(t==="funcionarios") renderFunc();
   if(t==="ajustes"){ fillCfg(); renderOrdem(); renderZebra(); subPontes(); renderMarcas(); }
   if(t==="permissoes") renderPerm();
+  if(t==="livre") prepLivre();
   if(t==="perdas"){ carregarPerdas(); }
 }
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>go(b.dataset.tab));
@@ -1552,12 +1584,13 @@ function asciiBytes(t){ const u=new Uint8Array(t.length); for(let i=0;i<t.length
 function juntar(partes){ const n=partes.reduce((a,p)=>a+p.length,0), u=new Uint8Array(n); let o=0; for(const p of partes){u.set(p,o);o+=p.length} return u }
 function cabecalhoTSPL(un){ const {w,h}=tam(), im=impDe(un);
   return `SIZE ${w} mm,${h} mm\r\nGAP ${Number(im.gap)||0} mm,0 mm\r\nDIRECTION ${im.girar?0:1},0\r\nREFERENCE ${Math.round((Number(im.ajX)||0)*8)},${Math.round((Number(im.ajY)||0)*8)}\r\nDENSITY ${Math.min(15,Math.max(0,Number(im.dens)||8))}\r\nSPEED 4\r\nSET TEAR ON\r\n`; }
-async function gerarTSPL(e,copias){
-  const {cv,W,H}=await desenharEtiqueta(e), im=impDe(e.unidade);
+async function gerarTSPL(e,copias){ const {cv}=await desenharEtiqueta(e); return canvasTSPL(cv,e.unidade,copias) }
+function canvasTSPL(cv,un,copias){
+  const W=cv.width, H=cv.height, im=impDe(un);
   const d=cv.getContext("2d").getImageData(0,0,W,H).data, bpr=Math.ceil(W/8), bm=new Uint8Array(bpr*H);
   for(let y=0;y<H;y++) for(let x=0;x<W;x++){ const o=(y*W+x)*4; const preto=(d[o]+d[o+1]+d[o+2])/3<128;
     /* TSPL: bit 0 = imprime (preto), 1 = branco */ if(preto===!!im.inverter) bm[y*bpr+(x>>3)]|=(128>>(x&7)); }
-  return bytesB64(juntar([asciiBytes(cabecalhoTSPL(e.unidade)+`CLS\r\nBITMAP 0,0,${bpr},${H},0,`),bm,asciiBytes(`\r\nPRINT 1,${Math.max(1,copias||1)}\r\n`)]));
+  return bytesB64(juntar([asciiBytes(cabecalhoTSPL(un)+`CLS\r\nBITMAP 0,0,${bpr},${H},0,`),bm,asciiBytes(`\r\nPRINT 1,${Math.max(1,copias||1)}\r\n`)]));
 }
 async function trabalhoImpressao(e,copias){
   const im=impDe(e.unidade);
@@ -1643,6 +1676,82 @@ async function baixarPdf(lista){
   try{await dl.save({filename:nome,data:doc.output("blob")});}
   catch(err){ if(err&&err.code==="declined") return; toast("Não foi possível baixar o PDF ("+(err&&err.code||"erro")+")"); }
 }
+
+/* ---------- ETIQUETA LIVRE (prateleira, local, funcionário) ---------- */
+function canvasZPL(cv,copias){
+  const W=cv.width, H=cv.height, bpr=Math.ceil(W/8), d=cv.getContext("2d").getImageData(0,0,W,H).data, out=[];
+  for(let y=0;y<H;y++) for(let b=0;b<bpr;b++){ let byte=0; for(let i=0;i<8;i++){ const x=b*8+i; if(x<W){ const o=(y*W+x)*4; if((d[o]+d[o+1]+d[o+2])/3<128) byte|=(128>>i) } } out.push(byte.toString(16).padStart(2,"0").toUpperCase()) }
+  return `^XA^CI28^PW${W}^LL${H}^LH0,0^MD8^FO0,0^GFA,${bpr*H},${bpr*H},${bpr},${out.join("")}^FS^PQ${Math.max(1,copias||1)}^XZ`;
+}
+async function desenharLivre(d){
+  const {w,h}=tam(); const W=Math.round(w*8), H=Math.round(h*8), s=Math.min(W,H)/480;
+  const cv=document.createElement("canvas"); cv.width=W; cv.height=H; const g=cv.getContext("2d");
+  g.fillStyle="#fff"; g.fillRect(0,0,W,H); g.fillStyle="#000"; g.textBaseline="top";
+  const FAM='Arial,"Helvetica Neue",Helvetica,sans-serif';
+  let M=Math.round(16*s);
+  if(d.borda){ const b=Math.max(3,Math.round(6*s)); g.lineWidth=b; g.strokeStyle="#000"; g.strokeRect(M/2+b/2,M/2+b/2,W-M-b,H-M-b); M+=b+Math.round(6*s); }
+  let top=M, bot=H-M; const larg=W-2*M;
+  const largura=(t,px)=>{ g.font=`bold ${px}px ${FAM}`; return g.measureText(t).width };
+  const centro=(t,y,px)=>{ g.font=`bold ${px}px ${FAM}`; const tw=g.measureText(t).width; g.fillText(t,Math.round((W-tw)/2),Math.round(y)) };
+  if(d.marca){ const img=await logoImg(d.marca), fit=encaixe(img.naturalWidth||1,img.naturalHeight||1,Math.min(larg,Math.round(260*s)),Math.round(H*0.18));
+    const lc=document.createElement("canvas"); lc.width=fit.w; lc.height=fit.h; const lx=lc.getContext("2d"); lx.drawImage(img,0,0,fit.w,fit.h);
+    const ld=lx.getImageData(0,0,fit.w,fit.h), q=ld.data; for(let i=0;i<q.length;i+=4){ const ink=q[i+3]>70&&(q[i]+q[i+1]+q[i+2])/3<160; q[i]=q[i+1]=q[i+2]=ink?0:255; q[i+3]=ink?255:0 } lx.putImageData(ld,0,0);
+    g.drawImage(lc,Math.round((W-fit.w)/2),top); top+=fit.h+Math.round(10*s);
+    g.fillRect(M,top,larg,Math.max(2,Math.round(3*s))); top+=Math.round(12*s); }
+  if(d.data){ const px=Math.round(24*s), t=new Date().toLocaleDateString("pt-BR"); centro(t,bot-px,px); bot-=px+Math.round(8*s); }
+  // linhas menores (2 e 3): cada uma numa linha, diminuindo se não couber
+  const subs=[d.l2,d.l3].map(x=>String(x||"").trim()).filter(Boolean).map(t=>{ let px=Math.round(40*s); while(px>12&&largura(t,px)>larg) px--; return {t,px} });
+  const subsH=subs.reduce((a,x)=>a+x.px*1.15,0);
+  // texto principal: o maior tamanho que couber (até 4 linhas)
+  const T=String(d.t||"").trim().toUpperCase(); let tl=[], tpx=0;
+  const quebra=(t,px)=>{ const ws=t.split(/\s+/).filter(Boolean), out=[]; let cur=""; for(const wd of ws){ if(largura(wd,px)>larg) return null; const tst=cur?cur+" "+wd:wd; if(largura(tst,px)<=larg) cur=tst; else { out.push(cur); cur=wd } } if(cur) out.push(cur); return out };
+  if(T){ const disp=bot-top-(subs.length?subsH+Math.round(12*s):0);
+    for(let px=Math.round(Math.min(H*0.42,220*s));px>=12;px-=2){ const l=quebra(T,px); if(l&&l.length<=4&&l.length*px*1.08<=disp){ tl=l; tpx=px; break } }
+    if(!tl.length){ tpx=12; tl=[T] } }
+  const blocoH=tl.length*tpx*1.08+(tl.length&&subs.length?Math.round(12*s):0)+subsH;
+  let y=top+Math.max(0,(bot-top-blocoH)/2);
+  tl.forEach(l=>{ centro(l,y,tpx); y+=tpx*1.08 }); if(tl.length&&subs.length) y+=Math.round(12*s);
+  subs.forEach(x=>{ centro(x.t,y,x.px); y+=x.px*1.15 });
+  return {cv,W,H};
+}
+let lvMod="texto", lvLoja=null, lvMarca=undefined, lvTimer=null;
+const LV_PH={texto:["ex.: MOLHOS","ex.: Câmara fria","ex.: Não mexer"],prat:["ex.: PRATELEIRA 1","ex.: Carnes e frios","ex.: Estoque seco"],func:["Nome do funcionário","Função","Loja"]};
+function prepLivre(){
+  if(!lvLoja) lvLoja=lsGet("xg-lv-loja"); if(!(cfg.unidades||[]).includes(lvLoja)) lvLoja=(cfg.unidades||[])[0]||"";
+  $("#lvLoja").innerHTML=(cfg.unidades||[]).map(u=>`<button type="button" class="chip" data-u="${esc(u)}" aria-pressed="${u===lvLoja}">${esc(unCurta(u))}</button>`).join("");
+  const cur=$("#lvFunc").value;
+  $("#lvFunc").innerHTML=`<option value="">Escolha…</option>`+[...funcionarios].sort((a,b)=>a.nome.localeCompare(b.nome)).map(f=>`<option value="${esc(f.id)}"${f.id===cur?" selected":""}>${esc(f.nome)}</option>`).join("");
+  document.querySelectorAll("#lvMod .chip").forEach(b=>b.setAttribute("aria-pressed",b.dataset.m===lvMod));
+  $("#lvFuncF").hidden=lvMod!=="func"; const ph=LV_PH[lvMod]; $("#lvT").placeholder=ph[0]; $("#lvL2").placeholder=ph[1]; $("#lvL3").placeholder=ph[2];
+  renderLvMarca(); previaLivre();
+}
+function renderLvMarca(){ const ms=lvLoja?marcasDaLoja(lvLoja):[]; if(lvMarca===undefined||(lvMarca&&!ms.includes(lvMarca))) lvMarca=ms[0]||"";
+  $("#lvMarca").innerHTML=ms.map(id=>`<button type="button" class="chip" data-mc="${esc(id)}" aria-pressed="${id===lvMarca}">${esc(marcaDe(id).nome||id)}</button>`).join("")+`<button type="button" class="chip" data-mc="" aria-pressed="${!lvMarca}">Sem logo</button>`; }
+function dadosLivre(){ return {t:$("#lvT").value,l2:$("#lvL2").value,l3:$("#lvL3").value,marca:lvMarca||null,borda:$("#lvBorda").checked,data:$("#lvData").checked,unidade:lvLoja} }
+function previaLivre(){ clearTimeout(lvTimer); lvTimer=setTimeout(async()=>{ const {cv,W,H}=await desenharLivre(dadosLivre()); const c=$("#lvCanvas"); c.width=W; c.height=H; c.getContext("2d").drawImage(cv,0,0) },120) }
+async function imprimirLivre(d,n){
+  const un=d.unidade, nome=String(d.t).trim(), {cv}=await desenharLivre(d), im=impDe(un);
+  if(!cfg.zebraAtiva||im.tipo==="pdf"){
+    if(!window.jspdf){toast("Gerador de PDF não carregou. Recarregue a página.");return}
+    const dl=await claude.use("downloads"); if(!dl){toast("Download de arquivos indisponível nesta visualização");return}
+    const {jsPDF}=window.jspdf, {w,h}=tam(), o=w>=h?"landscape":"portrait", doc=new jsPDF({orientation:o,unit:"mm",format:[w,h]}), png=cv.toDataURL("image/png");
+    for(let i=0;i<n;i++){ if(i) doc.addPage([w,h],o); doc.addImage(png,"PNG",0,0,w,h) }
+    try{ await dl.save({filename:`etiqueta-${slug(nome)}.pdf`,data:doc.output("blob")}) }catch(err){ if(!(err&&err.code==="declined")) toast("Não foi possível baixar o PDF") } return }
+  if(!guard()) return;
+  if(im.tipo==="tspl"&&caixinhaDesatualizada(un)){ toast(`A caixinha de ${unCurta(un)} precisa ser atualizada (veja Ajustes).`); return }
+  const job=im.tipo==="tspl"?{formato:"tspl",zpl:"",dados:canvasTSPL(cv,un,n)}:{formato:"zpl",zpl:canvasZPL(cv,n)};
+  try{ const ref=await db.collection("impressoes").add({unidade:un,...job,copias:n,lote:"LIVRE",produto:nome,status:"pendente",criadoEm:new Date().toISOString(),por:quem()});
+    acompanharImpressao(ref,nome,un); }catch(err){erro(err)}
+}
+$("#lvMod").addEventListener("click",e=>{ const b=e.target.closest("[data-m]"); if(!b) return; lvMod=b.dataset.m; prepLivre(); });
+$("#lvLoja").addEventListener("click",e=>{ const b=e.target.closest("[data-u]"); if(!b) return; lvLoja=b.dataset.u; try{localStorage.setItem("xg-lv-loja",lvLoja)}catch(_){}
+  document.querySelectorAll("#lvLoja .chip").forEach(c=>c.setAttribute("aria-pressed",c.dataset.u===lvLoja)); lvMarca=undefined; renderLvMarca(); previaLivre(); });
+$("#lvMarca").addEventListener("click",e=>{ const b=e.target.closest("[data-mc]"); if(!b) return; lvMarca=b.dataset.mc; renderLvMarca(); previaLivre(); });
+$("#lvFunc").onchange=()=>{ const f=funcionarios.find(x=>x.id===$("#lvFunc").value); if(!f) return; $("#lvT").value=f.nome||""; $("#lvL2").value=f.funcao||""; $("#lvL3").value=""; previaLivre(); };
+["#lvT","#lvL2","#lvL3","#lvBorda","#lvData"].forEach(k=>$(k).addEventListener("input",previaLivre));
+$("#bLvLimpar").onclick=()=>{ $("#lvT").value=$("#lvL2").value=$("#lvL3").value=""; $("#lvFunc").value=""; previaLivre(); $("#lvT").focus(); };
+$("#fLivre").addEventListener("submit",async e=>{ e.preventDefault(); const d=dadosLivre(); if(!String(d.t).trim()){toast("Escreva o texto da etiqueta");$("#lvT").focus();return}
+  if(!d.unidade){toast("Escolha a loja");return} const n=Math.min(50,Math.max(1,parseInt($("#lvQtd").value)||1)); await imprimirLivre(d,n); });
 
 /* ---------- MANIPULAÇÃO (todos) ---------- */
 let mpProd=null, mpLoja=null, mpMed="kg", mpUltimo=null;
